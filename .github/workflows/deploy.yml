@@ -2,8 +2,15 @@ name: Deploy MultiPost Markdown Editor
 
 on:
   push:
+    tags:
+      - 'v*'  # 仅在 main 分支打了 v* 格式的 tag 时触发
     branches:
-      - main
+      - main  # 限制只能从 main 分支触发
+
+# 确保 GitHub Actions 串行执行，避免并发部署冲突
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
@@ -12,18 +19,23 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史，用于验证分支
 
       - name: Check Skip CI
         run: |
-          if grep -q "noci" <<< "${{ github.event.client_payload.message || '' }}"; then
-            echo "跳过构建: commit message 包含 'noci'"
+          if echo "${{ github.event.head_commit.message }}" | grep -q "\[skip ci\]\|\[ci skip\]\|noci"; then
+            echo "⏭️ 跳过构建: commit message 包含跳过标记"
             exit 78
           fi
 
-      - name: Login to Aliyun Docker Registry
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Aliyun Docker Registry (Hangzhou)
         uses: docker/login-action@v3
         with:
-          registry: registry.cn-guangzhou.aliyuncs.com
+          registry: registry.cn-hangzhou.aliyuncs.com
           username: ${{ secrets.ALIYUN_DOCKER_USERNAME }}
           password: ${{ secrets.ALIYUN_DOCKER_PASSWORD }}
 
@@ -32,33 +44,47 @@ jobs:
         with:
           version: '2.14.2'
 
-      - name: Build Docker images
-        run: docker compose -f ./docker/docker-compose-build.yml build
+      - name: Build and Push Docker image with cache
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          push: true
+          tags: registry.cn-hangzhou.aliyuncs.com/famawang-ns/multipost-webapp:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Tag and Push Docker images
-        run: |
-          docker push registry.cn-guangzhou.aliyuncs.com/leaperone/multipost-markdown-editor:latest
-
-      - name: Deploy to Production
-        if: github.ref == 'refs/heads/main'
+      - name: Deploy to JDCloud Production
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.ALIYUN_HK_HOST }}
-          username: ${{ secrets.ALIYUN_CN_USERNAME }}
-          port: ${{ secrets.ALIYUN_CN_PORT }}
-          key: ${{ secrets.ALIYUN_CN_SSH_PRIVATE_KEY }}
-          script: ${{ secrets.DEPLOY_MULTIPOST_SCRIPT }}
-
-  notify:
-    needs: build-and-deploy
-    if: always()
-    uses: leaperone/leaperone-releases/.github/workflows/feishu-notification.yml@main
-    with:
-      status: ${{ needs.build-and-deploy.result }}
-      ref: leaperone/MultiPost-Markdown-Editor@${{ github.event.client_payload.ref }}
-      run_number: ${{ github.run_number }}
-      message: ${{ github.event.client_payload.message }}
-      author: ${{ github.event.client_payload.author }}
-      run_id: ${{ github.run_id }}
-    secrets:
-      FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          host: ${{ secrets.JDCLOUD_HOST }}
+          username: ${{ secrets.JDCLOUD_USERNAME }}
+          port: ${{ secrets.JDCLOUD_PORT }}
+          key: ${{ secrets.JDCLOUD_SSH_PRIVATE_KEY }}
+          script: |
+            echo "🚀 开始部署到京东云服务器..."
+            
+            # 登录阿里云镜像仓库
+            docker login --username=${{ secrets.ALIYUN_DOCKER_USERNAME }} \
+              --password=${{ secrets.ALIYUN_DOCKER_PASSWORD }} \
+              registry.cn-hangzhou.aliyuncs.com
+            
+            # 拉取最新镜像
+            docker pull registry.cn-hangzhou.aliyuncs.com/famawang-ns/multipost-webapp:latest
+            
+            # 停止并删除旧容器
+            docker stop multipost-webapp || true
+            docker rm multipost-webapp || true
+            
+            # 启动新容器
+            docker run -d \
+              --name multipost-webapp \
+              --restart unless-stopped \
+              -p 8080:80 \
+              registry.cn-hangzhou.aliyuncs.com/famawang-ns/multipost-webapp:latest
+            
+            # 清理未使用的镜像
+            docker image prune -f
+            
+            echo "✅ 部署完成！"
+            echo "📍 访问地址: http://$(curl -s ifconfig.me):8080"
