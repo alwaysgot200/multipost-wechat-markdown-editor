@@ -1,4 +1,4 @@
-FROM node:20.18.1-alpine3.20 AS base
+FROM node:22.18.0-alpine3.20 AS base
 RUN apk update --no-cache && apk add --no-cache \
     tzdata \
     make \
@@ -24,15 +24,19 @@ RUN pnpm install --frozen-lockfile
 # Build the web app
 RUN pnpm --filter @md/web run build:h5-netlify:only
 
-FROM nginx:alpine AS final
+# Final stage: lightweight Node.js server
+FROM node:22.18.0-alpine3.20 AS final
 ENV TZ=Asia/Shanghai
 
-# Copy nginx configuration
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+# Install serve for static file hosting
+RUN npm install -g serve
 
-# Copy build artifacts from the new location
-COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
+# Copy build artifacts
+COPY --from=builder /app/apps/web/dist /app/dist
 
-EXPOSE 80
+WORKDIR /app
 
-CMD ["nginx", "-g", "daemon off;"]
+EXPOSE 3000
+
+# Use serve to host static files
+CMD ["serve", "-s", "dist", "-l", "3000"]

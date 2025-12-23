@@ -1,0 +1,135 @@
+name: Deploy MultiPost Markdown Editor (Static Files)
+
+on:
+  push:
+    tags:
+      - 'v*'  # 仅在 main 分支打了 v* 格式的 tag 时触发
+    branches:
+      - main  # 限制只能从 main 分支触发
+
+# 确保 GitHub Actions 串行执行，避免并发部署冲突
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Skip CI
+        run: |
+          if echo "${{ github.event.head_commit.message }}" | grep -q "\[skip ci\]\|\[ci skip\]\|noci"; then
+            echo "⏭️ 跳过构建: commit message 包含跳过标记"
+            exit 78
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 'latest'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build static files
+        run: |
+          echo "📦 开始构建静态文件..."
+          pnpm --filter @md/web run build:h5-netlify:only
+          echo "✅ 构建完成！"
+
+      - name: Create deployment package
+        run: |
+          echo "🗜️ 创建部署压缩包..."
+          cd apps/web/dist
+          tar -czf ../../../multipost-webapp-${{ github.sha }}.tar.gz .
+          cd ../../..
+          echo "✅ 压缩包创建完成: multipost-webapp-${{ github.sha }}.tar.gz"
+          ls -lh multipost-webapp-${{ github.sha }}.tar.gz
+
+      - name: Upload to JDCloud Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.JDCLOUD_HOST }}
+          username: ${{ secrets.JDCLOUD_USERNAME }}
+          port: ${{ secrets.JDCLOUD_PORT }}
+          key: ${{ secrets.JDCLOUD_SSH_PRIVATE_KEY }}
+          source: "multipost-webapp-${{ github.sha }}.tar.gz,docker/nginx/multipost.conf"
+          target: "/tmp/multipost_deploy"
+
+      - name: Deploy to production
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.JDCLOUD_HOST }}
+          username: ${{ secrets.JDCLOUD_USERNAME }}
+          port: ${{ secrets.JDCLOUD_PORT }}
+          key: ${{ secrets.JDCLOUD_SSH_PRIVATE_KEY }}
+          script: |
+            echo "🚀 开始部署到京东云服务器..."
+            
+            # 设置变量
+            DEPLOY_DIR="/webapp/multipost-webapp"
+            PACKAGE_FILE="/tmp/multipost_deploy/multipost-webapp-${{ github.sha }}.tar.gz"
+            NGINX_CONF_FILE="/tmp/multipost_deploy/docker/nginx/multipost.conf"
+            
+            # 创建部署目录
+            mkdir -p $DEPLOY_DIR
+            mkdir -p /webapp/nginx/conf.d
+            mkdir -p /webapp/nginx/logs/multipost
+            
+            # 更新 Nginx 配置
+            if [ -f "$NGINX_CONF_FILE" ]; then
+              echo "📝 更新 Nginx 配置..."
+              cp $NGINX_CONF_FILE /webapp/nginx/conf.d/multipost.conf
+              echo "✅ Nginx 配置已更新"
+            fi
+            
+            # 清空部署目录（保留目录本身）
+            echo "🗑️ 清空旧文件..."
+            rm -rf $DEPLOY_DIR/*
+            rm -rf $DEPLOY_DIR/.[!.]*  # 删除隐藏文件（排除 . 和 ..）
+            echo "✅ 目录已清空"
+            
+            # 解压新版本
+            echo "📂 解压新版本..."
+            tar -xzf $PACKAGE_FILE -C $DEPLOY_DIR
+            
+            # 设置权限
+            chmod -R 755 $DEPLOY_DIR
+            
+            # 清理临时文件
+            rm -f $PACKAGE_FILE
+            rm -rf /tmp/multipost_deploy
+            
+            # 测试 Nginx 配置
+            echo "🔍 测试 Nginx 配置..."
+            if docker exec nginx-shared nginx -t 2>&1; then
+              echo "✅ Nginx 配置测试通过"
+              # 重载 Nginx（零中断）
+              docker exec nginx-shared nginx -s reload
+              echo "✅ Nginx 已重载"
+            else
+              echo "❌ Nginx 配置测试失败，请检查配置！"
+              exit 1
+            fi
+            
+            # 记录部署日志
+            DEPLOY_LOG="$DEPLOY_DIR/deploy_history.log"
+            echo "----------------------------------------------------------------" >> $DEPLOY_LOG
+            echo "Deploy Time: $(date '+%Y-%m-%d %H:%M:%S')" >> $DEPLOY_LOG
+            echo "Git Tag: ${{ github.ref_name }}" >> $DEPLOY_LOG
+            echo "Git Commit: ${{ github.sha }}" >> $DEPLOY_LOG
+            echo "Deploy Status: SUCCESS" >> $DEPLOY_LOG
+            echo "----------------------------------------------------------------" >> $DEPLOY_LOG
+            
+            echo "✅ 部署完成！"
+            echo "📍 静态文件路径: $DEPLOY_DIR"
+            echo "🔗 Nginx 配置路径: /webapp/nginx/conf.d/multipost.conf"

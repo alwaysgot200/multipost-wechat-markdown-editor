@@ -1,11 +1,11 @@
 name: Deploy MultiPost Markdown Editor
 
 on:
-  push:
-    tags:
-      - 'v*'  # 仅在 main 分支打了 v* 格式的 tag 时触发
-    branches:
-      - main  # 限制只能从 main 分支触发
+   push:
+     tags:
+       - 'v*'  # 仅在 main 分支打了 v* 格式的 tag 时触发
+     branches:
+       - main  # 限制只能从 main 分支触发
 
 # 确保 GitHub Actions 串行执行，避免并发部署冲突
 concurrency:
@@ -76,15 +76,16 @@ jobs:
             docker stop multipost-webapp || true
             docker rm multipost-webapp || true
             
-            # 启动新容器
+            # 启动新容器（端口 3000）
             docker run -d \
               --name multipost-webapp \
               --restart unless-stopped \
-              -p 8080:80 \
+              -p 3000:3000 \
               registry.cn-hangzhou.aliyuncs.com/famawang-ns/multipost-webapp:latest
             
             # 清理未使用的镜像
             docker image prune -f
             
             echo "✅ 部署完成！"
-            echo "📍 访问地址: http://$(curl -s ifconfig.me):8080"
+            echo "📍 容器已启动，监听端口: 3000"
+            echo "🔗 请配置 Nginx 反向代理到: http://localhost:3000"
