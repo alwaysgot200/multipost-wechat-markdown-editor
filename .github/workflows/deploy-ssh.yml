@@ -3,9 +3,7 @@ name: Deploy MultiPost Markdown Editor (Static Files)
 on:
   push:
     tags:
-      - 'v*'  # 仅在 main 分支打了 v* 格式的 tag 时触发
-    branches:
-      - main  # 限制只能从 main 分支触发
+      - 'v*'  # 仅在打 v* 格式的 tag 时触发部署
 
 # 确保 GitHub Actions 串行执行，避免并发部署冲突
 concurrency:
@@ -19,6 +17,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: main  # 强制使用 main 分支的代码
 
       - name: Check Skip CI
         run: |
@@ -84,6 +84,9 @@ jobs:
             mkdir -p $DEPLOY_DIR
             mkdir -p /webapp/nginx/conf.d
             mkdir -p /webapp/nginx/logs/multipost
+            
+            # 确保 Nginx 容器可以访问日志目录（需要在容器内创建）
+            docker exec nginx-famawang mkdir -p /var/log/nginx/multipost || true
             
             # 更新 Nginx 配置（仅在配置文件变化时才需要测试和重载）
             if [ -f "$NGINX_CONF_FILE" ]; then
