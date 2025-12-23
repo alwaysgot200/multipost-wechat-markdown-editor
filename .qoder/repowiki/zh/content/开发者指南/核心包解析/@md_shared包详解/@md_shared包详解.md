@@ -113,49 +113,58 @@ C --> D
 `types/`模块是`@md/shared`包的类型安全基石，通过`index.ts`文件统一导出所有类型定义。该模块包含AI服务、渲染器、模板等关键接口，为整个项目提供一致的类型约束。`types/index.ts`文件采用聚合导出模式，将各个子类型文件的定义集中暴露，简化了导入路径。
 
 ```mermaid
-classDiagram
-class AIServiceTypes {
-+value : string
-+label : string
-+endpoint : string
-+models : string[]
-}
-class RendererTypes {
-+reset(newOpts : Partial~IOpts~) : void
-+setOptions(newOpts : Partial~IOpts~) : void
-+getOpts() : IOpts
-+parseFrontMatterAndContent(markdown : string) : {yamlData, markdownContent, readingTime}
-+buildReadingTime(reading : ReadTimeResults) : string
-+buildFootnotes() : string
-+buildAddition() : string
-+createContainer(html : string) : string
-}
-class TemplateTypes {
-+id : string
-+name : string
-+content : string
-+description? : string
-+createdAt : number
-+updatedAt : number
-+tags? : string[]
-}
-class CommonTypes {
-+legend? : string
-+citeStatus? : boolean
-+countStatus? : boolean
-+isMacCodeBlock? : boolean
-+isShowLineNumber? : boolean
-}
-AIServiceTypes <|-- ImageServiceOption
-RendererTypes <|-- RendererAPI
-TemplateTypes <|-- Template
-TemplateTypes <|-- CreateTemplateParams
-TemplateTypes <|-- UpdateTemplateParams
-CommonTypes <|-- IOpts
-CommonTypes <|-- IConfigOption
-CommonTypes <|-- AlertOptions
-CommonTypes <|-- PostAccount
-CommonTypes <|-- Post
+graph TB
+    subgraph "AI 服务类型"
+        AIService["AIServiceTypes<br/>━━━━━━━━━━<br/>value: string<br/>label: string<br/>endpoint: string<br/>models: string[]"]
+        ImageService["ImageServiceOption"]
+    end
+    
+    subgraph "渲染器类型"
+        Renderer["RendererTypes<br/>━━━━━━━━━━<br/>reset(newOpts)<br/>setOptions(newOpts)<br/>getOpts()<br/>parseFrontMatterAndContent()<br/>buildReadingTime()<br/>buildFootnotes()<br/>buildAddition()<br/>createContainer()"]
+        RendererAPI["RendererAPI"]
+    end
+    
+    subgraph "模板类型"
+        Template["TemplateTypes<br/>━━━━━━━━━━<br/>id: string<br/>name: string<br/>content: string<br/>description?: string<br/>createdAt: number<br/>updatedAt: number<br/>tags?: string[]"]
+        TemplateImpl["Template"]
+        CreateParams["CreateTemplateParams"]
+        UpdateParams["UpdateTemplateParams"]
+    end
+    
+    subgraph "通用类型"
+        Common["CommonTypes<br/>━━━━━━━━━━<br/>legend?: string<br/>citeStatus?: boolean<br/>countStatus?: boolean<br/>isMacCodeBlock?: boolean<br/>isShowLineNumber?: boolean"]
+        IOpts["IOpts"]
+        IConfig["IConfigOption"]
+        Alert["AlertOptions"]
+        PostAcc["PostAccount"]
+        Post["Post"]
+    end
+    
+    AIService -.->|"实现"| ImageService
+    Renderer -.->|"实现"| RendererAPI
+    Template -.->|"实现"| TemplateImpl
+    Template -.->|"实现"| CreateParams
+    Template -.->|"实现"| UpdateParams
+    Common -.->|"实现"| IOpts
+    Common -.->|"实现"| IConfig
+    Common -.->|"实现"| Alert
+    Common -.->|"实现"| PostAcc
+    Common -.->|"实现"| Post
+    
+    style AIService fill:#e1f5ff,stroke:#0284c7,stroke-width:2px
+    style ImageService fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
+    style Renderer fill:#dcfce7,stroke:#16a34a,stroke-width:2px
+    style RendererAPI fill:#d1fae5,stroke:#10b981,stroke-width:2px
+    style Template fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
+    style TemplateImpl fill:#fef9c3,stroke:#eab308,stroke-width:2px
+    style CreateParams fill:#fef9c3,stroke:#eab308,stroke-width:2px
+    style UpdateParams fill:#fef9c3,stroke:#eab308,stroke-width:2px
+    style Common fill:#f3e8ff,stroke:#9333ea,stroke-width:2px
+    style IOpts fill:#e9d5ff,stroke:#a855f7,stroke-width:2px
+    style IConfig fill:#e9d5ff,stroke:#a855f7,stroke-width:2px
+    style Alert fill:#e9d5ff,stroke:#a855f7,stroke-width:2px
+    style PostAcc fill:#e9d5ff,stroke:#a855f7,stroke-width:2px
+    style Post fill:#e9d5ff,stroke:#a855f7,stroke-width:2px
 ```
 
 **Diagram sources**

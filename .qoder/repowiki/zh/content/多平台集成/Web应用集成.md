@@ -116,23 +116,31 @@ style F fill:#ff9,stroke:#333
 `wxt.config.ts`文件定义了扩展的核心配置，包括manifest配置、权限声明、侧边栏集成和命令注册等关键属性。
 
 ```mermaid
-classDiagram
-class ManifestConfig {
-+name : string
-+version : string
-+icons : object
-+permissions : string[]
-+host_permissions : string[]
-+web_accessible_resources : object[]
-+side_panel : object
-+sidebar_action : object
-+commands : object
-}
-ManifestConfig : +name = "公众号内容编辑器"
-ManifestConfig : +permissions = ["storage", "activeTab", "sidePanel", "contextMenus"]
-ManifestConfig : +host_permissions = ["https : //*.weixin.qq.com/*", "https : //*.qpic.cn/*"]
-ManifestConfig : +side_panel.default_path = "sidepanel.html"
-ManifestConfig : +commands._execute_sidebar_action.description = "Open MD Editor Side Panel"
+graph TB
+    ManifestConfig["Manifest 配置<br/>━━━━━━━━━━<br/>基本信息<br/>• name: 公众号内容编辑器<br/>• version: 动态版本号<br/>• icons: 图标配置"]
+    
+    Permissions["权限配置<br/>━━━━━━━━━━<br/>• storage<br/>• activeTab<br/>• sidePanel<br/>• contextMenus"]
+    
+    HostPermissions["主机权限<br/>━━━━━━━━━━<br/>• weixin.qq.com<br/>• qpic.cn (图片)"]
+    
+    SidePanel["侧边栏配置<br/>━━━━━━━━━━<br/>Chrome:<br/>• default_path: sidepanel.html<br/><br/>Firefox:<br/>• sidebar_action<br/>• default_panel: sidepanel.html"]
+    
+    Commands["命令配置<br/>━━━━━━━━━━<br/>• _execute_sidebar_action<br/>• 快捷键: Ctrl+Shift+Y<br/>• 描述: Open MD Editor Side Panel"]
+    
+    WebResources["可访问资源<br/>━━━━━━━━━━<br/>• *.png<br/>• *.svg<br/>• injected.js"]
+    
+    ManifestConfig --> Permissions
+    ManifestConfig --> HostPermissions
+    ManifestConfig --> SidePanel
+    ManifestConfig --> Commands
+    ManifestConfig --> WebResources
+    
+    style ManifestConfig fill:#e1f5ff,stroke:#0284c7,stroke-width:2px
+    style Permissions fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
+    style HostPermissions fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
+    style SidePanel fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
+    style Commands fill:#dbeafe,stroke:#3b82f6,stroke-width:2px
+    style WebResources fill:#f3e8ff,stroke:#9333ea,stroke-width:2px
 ```
 
 **Diagram sources**
