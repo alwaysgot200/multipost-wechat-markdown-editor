@@ -85,11 +85,23 @@ jobs:
             mkdir -p /webapp/nginx/conf.d
             mkdir -p /webapp/nginx/logs/multipost
             
-            # 更新 Nginx 配置
+            # 更新 Nginx 配置（仅在配置文件变化时才需要测试和重载）
             if [ -f "$NGINX_CONF_FILE" ]; then
               echo "📝 更新 Nginx 配置..."
               cp $NGINX_CONF_FILE /webapp/nginx/conf.d/multipost.conf
               echo "✅ Nginx 配置已更新"
+              
+              # 测试 Nginx 配置
+              echo "🔍 测试 Nginx 配置..."
+              if docker exec nginx-famawang nginx -t 2>&1; then
+                echo "✅ Nginx 配置测试通过"
+                # 重载 Nginx（零中断）
+                docker exec nginx-famawang nginx -s reload
+                echo "✅ Nginx 已重载"
+              else
+                echo "❌ Nginx 配置测试失败，请检查配置！"
+                exit 1
+              fi
             fi
             
             # 清空部署目录（保留目录本身）
@@ -108,18 +120,6 @@ jobs:
             # 清理临时文件
             rm -f $PACKAGE_FILE
             rm -rf /tmp/multipost_deploy
-            
-            # 测试 Nginx 配置
-            echo "🔍 测试 Nginx 配置..."
-            if docker exec nginx-shared nginx -t 2>&1; then
-              echo "✅ Nginx 配置测试通过"
-              # 重载 Nginx（零中断）
-              docker exec nginx-shared nginx -s reload
-              echo "✅ Nginx 已重载"
-            else
-              echo "❌ Nginx 配置测试失败，请检查配置！"
-              exit 1
-            fi
             
             # 记录部署日志
             DEPLOY_LOG="$DEPLOY_DIR/deploy_history.log"
